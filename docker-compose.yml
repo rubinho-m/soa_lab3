@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  consul:
+    image: consul:1.15.4
+    container_name: consul
+    hostname: localhost
+    ports:
+      - "8500:8500"
+
+  haproxy1:
+    build:
+      context: ./haproxy
+    container_name: haproxy
+    depends_on:
+      - consul
+    ports:
+      - "2828:2828"
+      - "8404:8404"
+
+  haproxy2:
+    build:
+      context: ./haproxy2
+    container_name: haproxy2
+    ports:
+      - "2929:2929"
+      - "8405:8405"
+
+  postgres:
+    container_name: postgres
+    image: postgres:16.0
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    expose:
+      - "5432"
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    command: -p 5432
+
+  service1instance1:
+    build:
+      context: ./first
+    container_name: first
+    env_file:
+      - first/1.env
+    depends_on:
+      - postgres
+      - consul
+
+  service1instance2:
+    build:
+      context: ./first
+    container_name: first2
+    env_file:
+      - first/2.env
+    depends_on:
+      - postgres
+      - consul
+    command: >
+      /opt/jboss/wildfly/bin/standalone.sh
+      -b 0.0.0.0
+      -bmanagement 0.0.0.0
+      -Djboss.http.port=8081
+      -Djboss.https.port=9443
+      -Djboss.management.http.port=9991
+      -Djboss.management.https.port=9992
+
+  service2instance1:
+    build:
+      context: ./second
+    container_name: second
+    env_file:
+      - second/.env
+    environment:
+      - JBOSS_BIND_ADDRESS=0.0.0.0
+      - JBOSS_BIND_ADDRESS_MANAGEMENT=0.0.0.0
+    command: >
+      /opt/jboss/wildfly/bin/standalone.sh
+      -b 0.0.0.0
+      -bmanagement 0.0.0.0
+    ports:
+      - "9990:9990"
+
+  service2instance2:
+    build:
+      context: ./second
+    container_name: second2
+    env_file:
+      - second/.env
+    environment:
+      - JBOSS_BIND_ADDRESS=0.0.0.0
+      - JBOSS_BIND_ADDRESS_MANAGEMENT=0.0.0.0
+    command: >
+      /opt/jboss/wildfly/bin/standalone.sh
+      -b 0.0.0.0
+      -bmanagement 0.0.0.0
+      -Djboss.http.port=8082
+      -Djboss.https.port=7443
+      -Djboss.management.http.port=9993
+      -Djboss.management.https.port=9994
+    ports:
+      - "9991:9993"
